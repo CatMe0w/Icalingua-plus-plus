@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="referrer" content="no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Icalingua++ Web</title>
+    <style>
+        #connect {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: system-ui, sans-serif;
+            background: #f5f7fa;
+        }
+
+        #connect[hidden] {
+            display: none;
+        }
+
+        #connect-form {
+            width: min(420px, calc(100vw - 32px));
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #connect-form input,
+        #connect-form button {
+            font: inherit;
+            padding: 8px;
+        }
+
+        #connect-error {
+            min-height: 1.5em;
+            color: #c0392b;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body class="icalingua-theme-holder">
+<div id="connect" hidden>
+    <form id="connect-form">
+        <h2>Icalingua++ Web</h2>
+        <label>Bridge 地址
+            <input id="connect-server" type="url" required style="width: 100%; box-sizing: border-box">
+        </label>
+        <label>私钥（hex）
+            <input id="connect-key" type="password" required autocomplete="off"
+                   style="width: 100%; box-sizing: border-box">
+        </label>
+        <button type="submit">连接</button>
+        <div id="connect-error"></div>
+    </form>
+</div>
+<div id="app"></div>
+<script>
+    window.__static = 'static'
+</script>
+</body>
+
+</html>
