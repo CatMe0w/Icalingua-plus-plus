@@ -96,7 +96,9 @@ type MessageBoxOptions = { message?: string; buttons?: string[]; type?: string }
 
 export const dialog = {
     showOpenDialogSync: (): string[] | undefined => undefined,
-    showSaveDialogSync: (): string | undefined => undefined,
+    // 浏览器下载由用户的浏览器决定保存位置，这里直接返回默认文件名（导出 CSV 等会以此作为下载文件名）
+    showSaveDialogSync: (_win: unknown, options?: { defaultPath?: string }): string | undefined =>
+        options?.defaultPath?.split(/[\\/]/).pop() || 'download',
     showMessageBox: async (winOrOptions: unknown, maybeOptions?: MessageBoxOptions) => {
         const options = maybeOptions ?? (winOrOptions as MessageBoxOptions)
         if (options?.buttons && options.buttons.length > 1) return { response: confirm(options.message) ? 0 : 1 }

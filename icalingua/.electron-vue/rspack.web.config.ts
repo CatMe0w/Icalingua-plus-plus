@@ -33,8 +33,6 @@ const MAIN_MODULE_REPLACEMENTS: Record<string, string> = {
     'main/utils/configManager': 'configManager',
     'main/utils/errorHandler': 'errorHandler',
     'main/utils/exit': 'exit',
-    'main/utils/exportContacts': 'exportContacts',
-    'main/utils/exportGroupMembers': 'exportGroupMembers',
     'main/utils/groupWebApps': 'groupWebApps',
     'main/utils/isInlineReplySupported': 'isInlineReplySupported',
     'main/utils/noctaliaServer': 'noctaliaServer',
@@ -44,6 +42,7 @@ const MAIN_MODULE_REPLACEMENTS: Record<string, string> = {
     'main/utils/updateChecker': 'updateChecker',
     'main/utils/version': 'version',
     'main/utils/windowManager': 'windowManager',
+    'main/utils/writeCsvData': 'writeCsvData',
     'utils/IcalinguaWindow': 'IcalinguaWindow',
     'utils/getWinUrl': 'getWinUrl',
 }
