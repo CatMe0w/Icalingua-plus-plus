@@ -187,7 +187,7 @@
     let RATIO_TIMER = null
     let TIP_TIMER = null
     let _ratio = 1
-    let url = decodeURIComponent(new RegExp('\\?url=(.*)').exec(window.parent.location.href)[1]).trim()
+    let url = decodeURIComponent(new RegExp('\\?url=(.*)').exec(window.location.href)[1]).trim()
     IMG.src = url.split('&message_id=')[0]
 
     var centerX = -1    // to center, with % instead

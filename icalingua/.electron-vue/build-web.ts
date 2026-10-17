@@ -23,6 +23,13 @@ const copyStaticAssets = async () => {
     for (const file of fs.readdirSync(staticDir)) {
         if (/\.(svg|wav|webp)$/.test(file)) fs.copyFileSync(path.join(staticDir, file), path.join(outDir, file))
     }
+    // 图片查看器（与桌面版共用 imgView.html）及其使用的右键菜单库
+    fs.copyFileSync(path.join(staticDir, 'imgView.html'), path.join(outDir, 'imgView.html'))
+    for (const file of ['basicContext.min.js', 'basicContext.min.css', 'themes/default.min.css']) {
+        const target = path.join(outDir, 'file-manager/assets', file)
+        fs.mkdirSync(path.dirname(target), { recursive: true })
+        fs.copyFileSync(path.join(staticDir, 'file-manager/assets', file), target)
+    }
     // 登录辅助用户脚本，由登录验证说明面板提供安装链接（见 src/web/externalPage.ts）
     fs.copyFileSync(
         path.join(__dirname, '../src/web/userscript/icalingua-login-helper.user.js'),

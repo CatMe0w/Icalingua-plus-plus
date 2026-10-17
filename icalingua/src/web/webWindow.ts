@@ -61,10 +61,24 @@ class WebContents extends Emitter {
     isDestroyed() {
         return this.window.isDestroyed()
     }
-    /** 网页版无法向外部页面注入脚本，记录下来供说明面板使用（见 externalPage.ts） */
+    /**
+     * 同源页面（如 static/imgView.html）可以直接在其中执行；
+     * 外部页面无法注入脚本，记录下来供说明面板使用（见 externalPage.ts）
+     */
     executeJavaScript(code: string) {
+        const frame = this.window.getSameOriginFrame()
+        if (frame) return Promise.resolve((frame as any).eval(String(code)))
         this.window.injectedScripts.push(String(code))
         return Promise.resolve(undefined)
+    }
+    /** 桌面版打开 QQ 网页前会给会话写入 cookie，网页版无法为其他网站设置 cookie，这些操作都不生效 */
+    readonly session = {
+        cookies: { set: async () => {}, get: async (): Promise<unknown[]> => [], remove: async () => {} },
+        clearCache: async () => {},
+        clearStorageData: async () => {},
+        setUserAgent: noop,
+        on: noop,
+        webRequest: { onBeforeSendHeaders: noop, onHeadersReceived: noop },
     }
     getURL() {
         return this.window.url
@@ -103,19 +117,34 @@ export class WebWindow extends Emitter {
     }
 
     /**
-     * 打开本应用的某个路由（#/xxx）。
-     * 外部网址默认显示说明面板，由用户在新标签页打开（见 externalPage.ts）；
-     * 创建窗口时指定 embedExternal 则直接嵌入面板（如 bridge 的群文件页面）。
+     * 本应用的路由（#/xxx）作为子窗口打开；同源的静态页面（如 static/imgView.html）直接嵌入面板；
+     * 创建窗口时指定 embedExternal 的外部页面也直接嵌入（如 bridge 的群文件页面）。
+     * 其他外部网址（QQ 的网页等）在新标签页打开，需要用户操作才能打开时显示说明面板（见 externalPage.ts）。
      */
     loadURL(url: string) {
         this.url = url
         const hash = url.includes('#') ? url.slice(url.indexOf('#')) : ''
         if (this.isMain) return Promise.resolve()
         const isAppRoute = !!hash && url.startsWith(location.href.split('#')[0])
-        if (!isAppRoute && !this.options.embedExternal) {
+        const isSameOrigin = new URL(url, location.href).origin === location.origin
+        if (!isAppRoute && !isSameOrigin && !this.options.embedExternal) {
             // 先触发 did-finish-load，让桌面版代码照常 "注入" 脚本，再据此决定面板内容
             this.webContents.emit('did-finish-load')
             const kind = detectExternalPageKind(this.options, this.injectedScripts)
+            // 普通网页（群作业、群成员管理等）直接打开；刚点过菜单时浏览器允许打开新标签页，被拦截才显示说明面板
+            if (kind === 'generic') {
+                const opened = window.open(url, '_blank')
+                if (opened) {
+                    // 新标签页此时仍是同源的空白页，可以断开它与本页的联系
+                    try {
+                        opened.opener = null
+                    } catch {
+                        // 断开失败不影响打开
+                    }
+                    this.close()
+                    return Promise.resolve()
+                }
+            }
             const content = createExternalPagePanel(url, kind, this)
             this.disposeContent = content.dispose
             this.createPanel(false, content.root)
@@ -127,6 +156,8 @@ export class WebWindow extends Emitter {
                 'load',
                 () => {
                     if (!this.title) this.setTitle(iframe.contentDocument?.title || '')
+                    // 与桌面版新窗口一样获得焦点，键盘操作（如 Esc 关闭查看器）作用于子窗口而不是主界面
+                    iframe.contentWindow?.focus()
                     this.webContents.emit('did-finish-load')
                     this.emit('ready-to-show')
                     resolve()
@@ -142,10 +173,26 @@ export class WebWindow extends Emitter {
         return this.panel?.querySelector('iframe')?.contentWindow ?? null
     }
 
-    private createPanel(isAppRoute: boolean, content?: HTMLElement) {
+    /** 面板里的同源页面（可以直接访问其 window），外部页面返回 null */
+    getSameOriginFrame(): Window | null {
+        const frame = this.getFrameWindow()
+        try {
+            return frame && frame.location.origin === location.origin ? frame : null
+        } catch {
+            return null
+        }
+    }
+
+    /** 在面板中直接显示一段页面内容（如视频播放器），尺寸取创建窗口时的 width / height */
+    loadContent(content: HTMLElement) {
+        this.createPanel(false, content, false)
+        this.webContents.emit('did-finish-load')
+    }
+
+    private createPanel(isAppRoute: boolean, content?: HTMLElement, compact = !!content) {
         ensureStyle()
-        const width = Math.min(content ? 480 : this.options.width || 800, window.innerWidth - 32)
-        const height = Math.min(content ? 360 : this.options.height || 600, window.innerHeight - 32)
+        const width = Math.min(compact ? 480 : this.options.width || 800, window.innerWidth - 32)
+        const height = Math.min(compact ? 360 : this.options.height || 600, window.innerHeight - 32)
         const offset = (windows.size % 6) * 24
         const panel = document.createElement('div')
         panel.className = 'web-window'
@@ -293,6 +340,10 @@ const STYLE = `
 .web-external-page .web-external-primary { background: #409eff; border-color: #409eff; color: #fff; }
 .web-external-input { width: 100%; box-sizing: border-box; margin: 8px 0; font-family: monospace; font-size: 12px; }
 .web-external-status { color: #909399; }
+.web-video-viewer { flex: 1; display: flex; flex-direction: column; min-height: 0; background: #000; }
+.web-video-viewer video { flex: 1; min-height: 0; width: 100%; }
+.web-video-bar { display: flex; gap: 8px; justify-content: flex-end; padding: 6px 8px; background: #1f1f1f; }
+.web-video-bar button { padding: 4px 12px; border: 1px solid #555; border-radius: 4px; background: #2b2b2b; color: #e5e5e5; cursor: pointer; }
 .web-window-dragging iframe { pointer-events: none; }
 @media (prefers-color-scheme: dark) {
     .web-window { background: #131415; border-color: #444; }

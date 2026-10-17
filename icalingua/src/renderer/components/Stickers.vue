@@ -506,6 +506,8 @@ export default {
             return 'local:' + relPath
         },
         getRemoteStickerPreview(url) {
+            // 网页版无法在本地生成和保存预览图，直接显示原图
+            if (isWebStatic) return url
             if (!this.preview_dir || !url) return ''
             return 'file://' + this.preview_dir + md5(this.getRemotePreviewKey(url))
         },
@@ -673,6 +675,7 @@ export default {
             })
         },
         remoteErrorHandler(e) {
+            if (isWebStatic) return
             const url = e.target.dataset.remoteUrl
             if (!url || !this.preview_dir || e.target.dataset.previewFallback === 'true') return
             const previewUrl = this.getRemoteStickerPreview(url)
@@ -887,10 +890,12 @@ export default {
             e.target.src = this.getStickerPreview(e.target.dataset.relativePath)
         },
         onRemoteStickerMouseover(e) {
+            if (isWebStatic) return
             e.target.dataset.previewFallback = 'false'
             e.target.src = e.target.dataset.remoteUrl
         },
         onRemoteStickerMouseout(e) {
+            if (isWebStatic) return
             e.target.dataset.previewFallback = 'false'
             e.target.src = this.getRemoteStickerPreview(e.target.dataset.remoteUrl)
         },

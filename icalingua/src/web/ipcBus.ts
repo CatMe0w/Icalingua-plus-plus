@@ -118,6 +118,11 @@ export const ipcMain = {
     handle(channel: string, handler: Handler) {
         mainInvokeHandlers.set(channel, handler)
     },
+    /** 与 EventEmitter 一样直接触发监听器（主进程代码内部调用） */
+    emit(channel: string, event: any, ...args: any[]) {
+        for (const handler of mainOnHandlers.get(channel) ?? []) handler(event, ...args)
+        return mainOnHandlers.has(channel)
+    },
     removeHandler(channel: string) {
         mainInvokeHandlers.delete(channel)
     },
