@@ -11,7 +11,7 @@ interface IpcEvent {
 }
 
 const rendererListeners = new Map<string, Set<Listener>>()
-const mainOnHandlers = new Map<string, Handler>()
+const mainOnHandlers = new Map<string, Set<Handler>>()
 const mainInvokeHandlers = new Map<string, Handler>()
 const warned = new Set<string>()
 
@@ -40,8 +40,10 @@ export const emitToRenderer = (channel: string, ...args: any[]) => {
 }
 
 export const ipcMain = {
+    // 与 Electron 一样，同一通道可以有多个监听器（如 ui.ts 与 bridge.ts 都监听 setSelectedRoom）
     on(channel: string, handler: Handler) {
-        mainOnHandlers.set(channel, handler)
+        if (!mainOnHandlers.has(channel)) mainOnHandlers.set(channel, new Set())
+        mainOnHandlers.get(channel).add(handler)
     },
     handle(channel: string, handler: Handler) {
         mainInvokeHandlers.set(channel, handler)
@@ -71,14 +73,17 @@ export const ipcRenderer = {
         return ipcRenderer
     },
     send(channel: string, ...args: any[]) {
-        const handler = mainOnHandlers.get(channel)
-        if (!handler) return warnOnce('send', channel)
+        const handlers = mainOnHandlers.get(channel)
+        if (!handlers) return warnOnce('send', channel)
         // Electron 的 send 是异步的，这里也放到微任务里，避免渲染进程代码依赖同步副作用
         queueMicrotask(() => {
-            try {
-                handler(event, ...args)
-            } catch (e) {
-                console.error(`[web] 处理 ${channel} 时出错`, e)
+            for (const handler of handlers) {
+                try {
+                    const result = handler(event, ...args)
+                    if (result instanceof Promise) result.catch((e) => console.error(`[web] 处理 ${channel} 时出错`, e))
+                } catch (e) {
+                    console.error(`[web] 处理 ${channel} 时出错`, e)
+                }
             }
         })
     },

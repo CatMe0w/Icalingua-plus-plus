@@ -2,8 +2,8 @@
  * 网页版的 "主进程"：把 main/adapters/socketIoAdapter.ts 和 main/ipc/* 中 bridge 模式实际用到的部分
  * 搬到浏览器里，直接用 socket.io 连 bridge，再通过 ipcBus 与渲染进程代码对接。
  *
- * 这是最小验证版本：只覆盖主界面（会话列表、消息收发、历史）需要的通道，
- * 其余通道由 ipcBus 打印 "未实现" 警告。
+ * 只覆盖网页版需要的通道，其余通道由 ipcBus 打印 "未实现" 警告。
+ * 下方导出的 adapter 供 web/main/botAndStorage.ts 使用，从而让 menuManager.ts 等主进程代码直接复用。
  */
 import BridgeVersionInfo from '@icalingua/types/BridgeVersionInfo'
 import ChatGroup from '@icalingua/types/ChatGroup'
@@ -33,6 +33,7 @@ let disabledFeatures: SpecialFeature[]
 let selectedRoomId = 0
 let dbUpgradeProgress: DatabaseUpgradeProgress = { active: false, step: 0, total: 0, message: '' }
 let atCache: any[] = []
+let currentLoadedMessagesCount = 0
 
 export interface ConnectCallbacks {
     /** 鉴权通过且 bridge 已登录 QQ，第一次收到 onlineData 时调用 */
@@ -185,8 +186,6 @@ const clearRoomUnread = (roomId: number) => {
 
 const sendMessage = (data: any) => {
     if (!data.roomId && !data.room) data.roomId = selectedRoomId
-    data.at = atCache
-    atCache = []
     const viaHttp = (data.file && data.file.type?.startsWith('audio/')) || data.media?.some((i) => i.b64)
     if (viaHttp) {
         // 图片/语音走 bridge 的 HTTP 接口（与 Electron 版相同），要求页面与 bridge 同源或 bridge 开启 CORS
@@ -292,7 +291,11 @@ const registerHandlers = () => {
     ipcMain.handle('fetchMessage', (_, { roomId, options }: { roomId: number; options: MessagePageOptions }) => {
         const initialPage = !options?.before && !options?.after
         if (initialPage && selectedRoomId) clearRoomUnread(selectedRoomId)
-        return call('fetchMessages', roomId, options || {})
+        return call<Message[]>('fetchMessages', roomId, options || {}).then((messages) => {
+            if (initialPage) currentLoadedMessagesCount = messages.length
+            else if (options?.before) currentLoadedMessagesCount += messages.length
+            return messages
+        })
     })
     ipcMain.handle('fetchMessagesAround', (_, { roomId, messageId, before, after }) =>
         call('fetchMessagesAround', roomId, messageId, before, after),
@@ -303,7 +306,11 @@ const registerHandlers = () => {
     ipcMain.handle('resolveUnreadTargetMessageId', (_, { roomId, unreadCount }) =>
         call('resolveUnreadTargetMessageId', roomId, unreadCount),
     )
-    ipcMain.on('sendMessage', (_, data) => sendMessage(data))
+    ipcMain.on('sendMessage', (_, data) => {
+        data.at = atCache
+        atCache = []
+        sendMessage(data)
+    })
     ipcMain.handle('pushAtCache', (_, at) => atCache.push(at))
     ipcMain.on('deleteMessage', (_, roomId: number, messageId: string) =>
         socket.emit('deleteMessage', roomId, messageId),
@@ -334,6 +341,89 @@ const registerHandlers = () => {
     ipcMain.on('downloadImage', (_, url: string) => window.open(url, '_blank', 'noopener'))
 }
 // endregion
+
+/**
+ * 与 main/adapters/socketIoAdapter.ts 对应的操作，供 web/main/botAndStorage.ts 导出给复用的主进程代码。
+ * 行为与 socketIoAdapter 保持一致（不含本地数据库同步）。
+ */
+export const adapter = {
+    sendMessage,
+    clearRoomUnread,
+    getUin: () => uin,
+    getNickname: () => nickname,
+    getSelectedRoomId: () => selectedRoomId,
+    getRoom: async (roomId: number) => rooms.find((e) => e.roomId === roomId),
+    getSelectedRoom: async () => rooms.find((e) => e.roomId === selectedRoomId),
+    getUnreadCount: async () => rooms.filter((e) => e.unreadCount && e.priority >= getConfig().priority).length,
+    getDisabledFeatures: async (): Promise<SpecialFeature[]> => {
+        if (!disabledFeatures) disabledFeatures = await call('getDisabledFeatures')
+        return disabledFeatures
+    },
+    getFriend: (id: number) => call('getFriend', id),
+    getGroup: (gin: number) => call('getGroup', gin),
+    getGroups: () => call('getGroups'),
+    getGroupMembers: (gin: number) => call('getGroupMembers', gin),
+    getGroupMemberInfo: (group: number, member: number, noCache = true) =>
+        call('getGroupMemberInfo', group, member, noCache),
+    getFriendsFallback: () => call('getFriendsFallback'),
+    getCookies: (domain: string) => call<string>('getCookies', domain),
+    getMsgNewURL: (id: string) => call<string>('getMsgNewURL', id),
+    getGroupFileMeta: (gin: number, fid: string) => call('getGroupFileMeta', gin, fid),
+    getPrivateFileUrl: (fileId: string) => call<string>('getPrivateFileUrl', fileId),
+    requestGfsToken: (gin: number) => call<string>('requestGfsToken', gin),
+    sendPacket: (type: string, cmd: string, body: object) => call('sendPacket', type, cmd, body),
+    deleteMessage: (roomId: number, messageId: string) => socket.emit('deleteMessage', roomId, messageId),
+    hideMessage: (roomId: number, messageId: string) => {
+        emitToRenderer('hideMessage', messageId)
+        socket.emit('hideMessage', roomId, messageId)
+    },
+    revealMessage: (roomId: number, messageId: string | number) => {
+        emitToRenderer('revealMessage', messageId)
+        socket.emit('revealMessage', roomId, messageId)
+    },
+    renewMessage: (roomId: number, messageId: string, message: Message) =>
+        socket.emit('renewMessage', roomId, messageId, message),
+    renewMessageURL: (roomId: number, messageId: string | number, URL: string) =>
+        socket.emit('renewMessageURL', roomId, messageId, URL),
+    fetchHistory: (messageId: string, roomId = selectedRoomId) =>
+        socket.emit('fetchHistory', messageId, roomId, currentLoadedMessagesCount),
+    fetch7DaysHistory: () => socket.emit('fetch7DaysHistory'),
+    ignoreChat: (data) => socket.emit('ignoreChat', data),
+    makeForward: (fakes, dm?: boolean, origin?: number, target?: number) =>
+        socket.emit('makeForward', fakes, dm, origin, target),
+    markRoomUnread: (roomId: number) => {
+        const room = rooms.find((e) => e.roomId === roomId)
+        if (!room) return
+        room.unreadCount = Math.max(room.unreadCount || 0, 1)
+        room.at = false
+        room.atMessageId = null
+        emitToRenderer('updateRoom', room)
+        updateRoom(roomId, { unreadCount: room.unreadCount, at: false, atMessageId: null })
+        updateTitle()
+    },
+    markMessageUnread: (roomId: number, messageId: string) =>
+        socket.emit('markMessageUnread', roomId, messageId, (unreadCount: number) => {
+            const count = Math.max(0, Math.trunc(Number(unreadCount) || 0))
+            const room = rooms.find((e) => e.roomId === roomId)
+            if (!count || !room) return
+            Object.assign(room, { unreadCount: count, at: false, atMessageId: null })
+            emitToRenderer('updateRoom', room)
+            updateTitle()
+        }),
+    pinRoom: (roomId: number, pin: boolean) => socket.emit('pinRoom', roomId, pin),
+    removeChat: (roomId: number) => {
+        socket.emit('removeChat', roomId)
+        emitToRenderer('chroom', 0)
+    },
+    setOnlineStatus: (status: number) => socket.emit('setOnlineStatus', status),
+    setRoomPriority: (roomId: number, priority: number) => socket.emit('setRoomPriority', roomId, priority),
+    setRoomAutoDownload: (roomId: number, autoDownload: boolean) =>
+        socket.emit('setRoomAutoDownload', roomId, autoDownload),
+    setRoomAutoDownloadPath: (roomId: number, downloadPath: string) =>
+        socket.emit('setRoomAutoDownloadPath', roomId, downloadPath),
+    sendGroupSign: (gin: number) => socket.emit('sendGroupSign', gin),
+    sendGroupPoke: (gin: number, target: number) => socket.emit('sendGroupPoke', gin, target),
+}
 
 /** 连接 bridge 并完成 Ed25519 挑战鉴权 */
 export const connect = (callbacks: ConnectCallbacks) => {

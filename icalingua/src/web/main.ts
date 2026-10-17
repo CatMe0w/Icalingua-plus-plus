@@ -7,7 +7,14 @@ import 'element-ui/lib/theme-chalk/index.css'
 import App from '../renderer/App.vue'
 import router from '../renderer/router'
 import { connect } from './bridge'
+// 复用桌面版的右键菜单逻辑：导入时注册 popup*Menu 等 IPC 处理函数
+import '../main/ipc/menuManager'
 import { getConfig, updateConfig } from './config'
+
+// 桌面版没有浏览器自带的右键菜单，网页版也屏蔽它，由应用自己的菜单接管；按住 Shift 时保留浏览器菜单
+window.addEventListener('contextmenu', (e) => {
+    if (!e.shiftKey) e.preventDefault()
+})
 
 const form = document.getElementById('connect-form') as HTMLFormElement
 const serverInput = document.getElementById('connect-server') as HTMLInputElement
