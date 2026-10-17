@@ -2,8 +2,7 @@
  * 网页版构建：复用渲染进程的 loader 配置，入口换成 src/web/main.ts，
  * 并把 electron / Node 内置模块替换成 src/web/shims 下的浏览器实现。
  *
- * 表情等静态资源由 build-web.ts 在编译后复制；设置 ICALINGUA_WEB_STATIC_URL 时
- * 页面从该地址（如 S3/CDN）加载它们，资源输出到 dist/web-static 供单独上传。
+ * 表情等静态资源由 build-web.ts 在编译后复制到 dist/web/static。
  */
 import path from 'path'
 import { Configuration, HtmlRspackPlugin, DefinePlugin, ProvidePlugin, RuleSetRule } from '@rspack/core'
@@ -12,7 +11,6 @@ import rendererConfig from './rspack.renderer.config'
 
 const isProduction = process.env.NODE_ENV === 'production'
 const shims = path.join(__dirname, '../src/web/shims')
-export const staticUrl = process.env.ICALINGUA_WEB_STATIC_URL || 'static'
 
 // 网页版不打包微软雅黑（16MB），交给系统字体回退：css-loader 不再解析这个 url，打包时也就不会包含它
 const withoutMsyh = (rule: RuleSetRule): RuleSetRule => {
@@ -42,7 +40,6 @@ const webConfig: Configuration = {
             filename: 'index.html',
             template: path.resolve(__dirname, '../src/web/index.ejs'),
             minify: isProduction,
-            templateParameters: { staticUrlJson: JSON.stringify(staticUrl) },
         }),
         new DefinePlugin({
             'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),

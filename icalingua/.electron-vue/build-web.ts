@@ -6,19 +6,16 @@ import sharp from 'sharp'
 process.env.NODE_ENV = process.env.NODE_ENV || 'production'
 
 // 必须在设置 NODE_ENV 之后再加载配置
-const { default: webConfig, staticUrl } = require('./rspack.web.config')
+const webConfig = require('./rspack.web.config').default
 
 const staticDir = path.join(__dirname, '../static')
-const distDir = path.join(__dirname, '../dist')
 
 /**
  * 复制渲染进程会直接引用的静态资源（Electron 专用的 preload / 注入脚本不需要），
  * 生成表情清单（网页版无法列目录）和表情面板用的缩略图。
- * 使用默认的相对地址时放进 dist/web/static，否则放进 dist/web-static 供上传到 S3/CDN。
  */
 const copyStaticAssets = async () => {
-    const outDir = staticUrl === 'static' ? path.join(distDir, 'web/static') : path.join(distDir, 'web-static')
-    fs.rmSync(outDir, { recursive: true, force: true })
+    const outDir = path.join(__dirname, '../dist/web/static')
     fs.mkdirSync(outDir, { recursive: true })
     for (const dir of ['face', 'qlottie']) {
         fs.cpSync(path.join(staticDir, dir), path.join(outDir, dir), { recursive: true })
@@ -38,7 +35,7 @@ const copyStaticAssets = async () => {
                 .toFile(path.join(outDir, 'face-thumb', face + '.webp')),
         ),
     )
-    console.log(`静态资源已输出到 ${outDir}，页面将从 ${staticUrl} 加载`)
+    console.log(`静态资源已输出到 ${outDir}`)
 }
 
 rspack(webConfig, (err, stats) => {

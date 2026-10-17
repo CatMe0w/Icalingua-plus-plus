@@ -1,6 +1,6 @@
 /**
  * 网页版配置：存在 localStorage 中。默认值照抄 main/utils/configManager.ts 的 defaultConfig，
- * 只是 adapter 固定为 socketIo，server 默认为页面所在的源（推荐由 bridge 托管本页面）。
+ * 只是 adapter 固定为 socketIo。页面通常与 bridge 不同源（如部署在 S3），server 需要用户首次填写。
  */
 import AllConfig from '@icalingua/types/AllConfig'
 
@@ -8,7 +8,7 @@ const STORAGE_KEY = 'icalingua-web-config'
 
 const defaultConfig: AllConfig = {
     privateKey: '',
-    server: location.origin,
+    server: '',
     account: {
         mdbConnStr: 'mongodb://localhost',
         rdsHost: '127.0.0.1',
