@@ -14,6 +14,10 @@ type Config = {
     milky?: string | { url: string; accessToken?: string }
     fetchHistoryMinDate?: string
     tempDir?: string
+    /** 网页版客户端的访问路径，如 /a8f3k2...；不填则不托管网页版 */
+    webPath?: string
+    /** 网页版客户端构建产物（icalingua/dist/web）所在目录，默认为 Bridge 工作目录下的 web */
+    webDir?: string
 }
 
 type UserConfig = {

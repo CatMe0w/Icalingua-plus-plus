@@ -26,12 +26,10 @@ const webConfig: Configuration = {
         }),
         new CopyRspackPlugin({
             // 只复制渲染进程会直接引用的静态资源，Electron 专用的 preload / 注入脚本不需要
-            patterns: ['face', 'qlottie', '*.svg', '*.wav', '*.webp'].map((from) => ({
-                from,
-                context: staticDir,
-                to: 'static',
-                noErrorOnMissing: true,
-            })),
+            patterns: [
+                ...['face', 'qlottie'].map((dir) => ({ from: dir, context: staticDir, to: `static/${dir}` })),
+                { from: '*.{svg,wav,webp}', context: staticDir, to: 'static' },
+            ],
         }),
         new DefinePlugin({
             'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
