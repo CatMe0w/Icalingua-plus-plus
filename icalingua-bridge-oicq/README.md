@@ -223,6 +223,22 @@ privateKey: # 安装的步骤中生成的私钥
 
 首次运行的时候会弹出登录界面，**需要注意的是数据库是相对应服务器的地址**，所以请在服务端配置好你想连接的数据库。
 
+### 网页版客户端（实验性）
+
+网页版不支持登录流程，请先用桌面客户端完成 Bridge 的 QQ 登录。
+
+1. 构建：在 `icalingua` 目录执行 `pnpm build:web`，产物在 `dist/web`（表情等静态资源在 `dist/web/static`）。
+2. 在 Bridge 的 `config.yaml` 中启用，Bridge 会在该路径托管网页版：
+
+    ```yaml
+    webPath: /一串足够长的随机字符 # 不填则不托管；请勿使用 /web 等容易被扫描的路径
+    webDir: /path/to/dist/web # 默认为 Bridge 工作目录下的 web
+    ```
+
+3. 打开 `https://你的域名/一串足够长的随机字符/`，填写私钥即可连接。私钥保存在浏览器的 localStorage 中。
+
+静态资源（约 150MB，主要是表情和超级表情）也可以放到自己的 S3/CDN 上：构建时设置 `ICALINGUA_WEB_STATIC_URL=https://你的地址/`，资源会输出到 `dist/web-static`，将其上传到该地址即可。超级表情通过 `fetch` 加载，存储桶需要允许页面所在域名的 CORS 请求。
+
 
 ## 登录握手细节
 

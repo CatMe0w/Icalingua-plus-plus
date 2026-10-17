@@ -31,7 +31,7 @@
                 <span v-if="message.type === 'face'" :key="i">
                     <img
                         class="face"
-                        :src="'file://' + facepath + preZeroFill(Number(message.value), 3)"
+                        :src="staticUrl('face/' + preZeroFill(Number(message.value), 3))"
                         :alt="message.value"
                     />
                 </span>
@@ -54,8 +54,6 @@
 import SvgIcon from './SvgIcon'
 import ForwardMessageCard from './ForwardMessageCard'
 
-const path = require('path')
-
 import {
     createForwardOpenEvent,
     parseForwardCard,
@@ -64,6 +62,7 @@ import {
 } from '../utils/forwardMessage'
 import { formatMessageParts, padFaceId } from '../utils/messageFormatting'
 import { isExternalMessageUrl } from '../utils/messageMarkdown'
+import { staticUrl } from '../../../utils/staticAsset'
 
 export default {
     name: 'FormatMessage',
@@ -81,12 +80,6 @@ export default {
         disableQLottie: { type: Boolean, required: false },
         usePanguJs: { type: Boolean, required: false, default: false },
         legacyAtCompat: { type: Boolean, default: false },
-    },
-
-    data() {
-        return {
-            facepath: path.join(__static, '/face/'),
-        }
     },
 
     computed: {
@@ -113,6 +106,7 @@ export default {
     },
 
     methods: {
+        staticUrl,
         isForwardMessage(message) {
             return message.type === 'forward' || message.type === 'nestedforward'
         },

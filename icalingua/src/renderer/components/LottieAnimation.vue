@@ -16,8 +16,6 @@
 
 <script>
 import lottie from 'lottie-web'
-import fs from 'fs'
-import path from 'path'
 import {
     hasCache,
     getCacheUrl,
@@ -26,16 +24,12 @@ import {
     onRenderComplete,
 } from '../utils/lottieWebmCache'
 import { createRendererLifecycleScope } from '../utils/rendererLifecycleScope'
+import { isWebStatic, preloadStaticJson, readStaticJsonSync as loadLottieJsonData } from '../utils/staticAsset'
 
-const lottieJsonCache = new Map()
-
-function loadLottieJsonData(filePath) {
-    if (lottieJsonCache.has(filePath)) {
-        return lottieJsonCache.get(filePath)
-    }
-    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
-    lottieJsonCache.set(filePath, data)
-    return data
+// 网页版需要先异步下载 JSON，之后的逻辑与 Electron 版一样同步读取缓存
+async function preloadLottie(filePath, resultPath) {
+    await preloadStaticJson(filePath)
+    if (resultPath && resultPath !== filePath) await preloadStaticJson(resultPath).catch(console.error)
 }
 
 export default {
@@ -106,8 +100,17 @@ export default {
             return this.pathResult && this.pathResult !== this.path
         },
     },
-    mounted() {
+    async mounted() {
         this.init()
+        if (isWebStatic) {
+            try {
+                await preloadLottie(this.path, this.pathResult)
+            } catch (e) {
+                console.error(e)
+                return
+            }
+            if (this._isDestroyed) return
+        }
         this.setupObserver()
         // 如果已有 WebM 缓存，直接切换到视频模式
         this.tryUseVideoCache()
@@ -388,7 +391,16 @@ export default {
         },
     },
     watch: {
-        path() {
+        async path() {
+            if (isWebStatic) {
+                try {
+                    await preloadLottie(this.path, this.pathResult)
+                } catch (e) {
+                    console.error(e)
+                    return
+                }
+                if (this._isDestroyed) return
+            }
             // 完整清理旧状态
             this.cancelRenderComplete()
             this.videoUrl = null

@@ -1,35 +1,48 @@
 /**
  * 网页版构建：复用渲染进程的 loader 配置，入口换成 src/web/main.ts，
  * 并把 electron / Node 内置模块替换成 src/web/shims 下的浏览器实现。
+ *
+ * 表情等静态资源由 build-web.ts 在编译后复制；设置 ICALINGUA_WEB_STATIC_URL 时
+ * 页面从该地址（如 S3/CDN）加载它们，资源输出到 dist/web-static 供单独上传。
  */
 import path from 'path'
-import { Configuration, CopyRspackPlugin, HtmlRspackPlugin, DefinePlugin, ProvidePlugin } from '@rspack/core'
+import { Configuration, HtmlRspackPlugin, DefinePlugin, ProvidePlugin, RuleSetRule } from '@rspack/core'
 import { VueLoaderPlugin } from 'vue-loader'
 import rendererConfig from './rspack.renderer.config'
 
 const isProduction = process.env.NODE_ENV === 'production'
 const shims = path.join(__dirname, '../src/web/shims')
-const staticDir = path.join(__dirname, '../static')
+export const staticUrl = process.env.ICALINGUA_WEB_STATIC_URL || 'static'
+
+// 网页版不打包微软雅黑（16MB），交给系统字体回退：css-loader 不再解析这个 url，打包时也就不会包含它
+const withoutMsyh = (rule: RuleSetRule): RuleSetRule => {
+    if (!Array.isArray(rule.use)) return rule
+    return {
+        ...rule,
+        use: rule.use.map<any>((loader) =>
+            loader === 'css-loader'
+                ? { loader: 'css-loader', options: { url: { filter: (url: string) => !/msyh\.ttf$/.test(url) } } }
+                : loader,
+        ),
+    } as RuleSetRule
+}
 
 const webConfig: Configuration = {
     devtool: isProduction ? false : 'cheap-module-source-map',
     entry: {
         web: path.join(__dirname, '../src/web/main.ts'),
     },
-    module: rendererConfig.module,
+    module: {
+        ...rendererConfig.module,
+        rules: rendererConfig.module.rules.map((rule) => withoutMsyh(rule as RuleSetRule)),
+    },
     plugins: [
         new VueLoaderPlugin() as any,
         new HtmlRspackPlugin({
             filename: 'index.html',
             template: path.resolve(__dirname, '../src/web/index.ejs'),
             minify: isProduction,
-        }),
-        new CopyRspackPlugin({
-            // 只复制渲染进程会直接引用的静态资源，Electron 专用的 preload / 注入脚本不需要
-            patterns: [
-                ...['face', 'qlottie'].map((dir) => ({ from: dir, context: staticDir, to: `static/${dir}` })),
-                { from: '*.{svg,wav,webp}', context: staticDir, to: 'static' },
-            ],
+            templateParameters: { staticUrlJson: JSON.stringify(staticUrl) },
         }),
         new DefinePlugin({
             'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),

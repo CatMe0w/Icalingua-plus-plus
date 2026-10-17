@@ -6,6 +6,7 @@
 import lottie, { AnimationItem } from 'lottie-web'
 import fs from 'fs'
 import path from 'path'
+import { isWebStatic } from './staticAsset'
 import crypto from 'crypto'
 import { Output, WebMOutputFormat, BufferTarget, CanvasSource } from 'mediabunny'
 
@@ -89,6 +90,8 @@ export function getCacheUrl(jsonData: LottieJsonData, resultData?: LottieJsonDat
 }
 
 export function isSupported(): boolean {
+    // 网页版没有本地磁盘缓存，渲染出的 WebM 无处存放，直接用 lottie 播放
+    if (isWebStatic) return false
     // Mediabunny 需要 VideoEncoder (WebCodecs API)
     try {
         const supported = typeof VideoEncoder !== 'undefined'

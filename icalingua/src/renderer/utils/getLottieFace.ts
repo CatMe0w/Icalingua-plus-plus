@@ -1,9 +1,8 @@
-import path from 'path'
 import { faceIdToLottie } from '@icalingua/types/LottieFaceType'
+import { lottieJsonKey } from './staticAsset'
 
 export const getLottiePath = (id: string, resultId?: string, packId = '1') => {
-    // @ts-ignore
-    return path.join(__static, 'qlottie', `${packId}`, `${id}`, resultId ? `${id}_${resultId}.json` : `${id}.json`)
+    return lottieJsonKey(`qlottie/${packId}/${id}/${resultId ? `${id}_${resultId}.json` : `${id}.json`}`)
 }
 
 export default (msgText: string, time: number, result?: boolean): string | undefined => {

@@ -65,6 +65,7 @@ import Loader from '../../components/Loader'
 import SvgIcon from '../../components/SvgIcon'
 import FormatMessage from '../../components/FormatMessage'
 import { ipcRenderer } from 'electron'
+import { staticUrl } from '../../../../utils/staticAsset'
 
 export default {
     name: 'MessageImage',
@@ -90,7 +91,7 @@ export default {
             imageResponsive: '',
             err: false,
             retried: false,
-            lightning: `file://${__static}/lightning.svg`,
+            lightning: staticUrl('lightning.svg'),
         }
     },
 

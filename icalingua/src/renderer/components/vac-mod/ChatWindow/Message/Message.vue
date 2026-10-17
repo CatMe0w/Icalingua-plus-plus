@@ -349,6 +349,7 @@ const { isImageFile } = require('../../utils/mediaFile')
 const { messagesValid } = require('../../utils/roomValidation')
 
 import LottieAnimation from '../../../LottieAnimation'
+import { staticUrl } from '../../../../utils/staticAsset'
 import ipc from '../../../../utils/ipc'
 import getImageUrlByMd5 from '../../../../../utils/getImageUrlByMd5'
 import getAvatarUrl from '../../../../../utils/getAvatarUrl'
@@ -404,10 +405,10 @@ export default {
             emojiOpened: false,
             lottie: getLottieFace(this.message.content, this.message.time),
             lottieResult: getLottieFace(this.message.content, this.message.time, true),
-            tgLogo: `file://${__static}/tg.svg`,
-            copyButton: `file://${__static}/Copy.svg`,
-            copyLinkButton: `file://${__static}/bx--link.svg`,
-            replyButton: `file://${__static}/reply.svg`,
+            tgLogo: staticUrl('tg.svg'),
+            copyButton: staticUrl('Copy.svg'),
+            copyLinkButton: staticUrl('bx--link.svg'),
+            replyButton: staticUrl('reply.svg'),
             recallInfoText: '',
         }
     },
@@ -591,15 +592,15 @@ export default {
         panguSpacing: (text) => pangu.spacing(text),
         copy() {
             navigator.clipboard.writeText(this.message.content)
-            new Audio(`file://${__static}/action_menu_select.wav`).play()
+            new Audio(staticUrl('action_menu_select.wav')).play()
         },
         copyLink() {
             navigator.clipboard.writeText(this.message.files[0].url)
-            new Audio(`file://${__static}/action_menu_select.wav`).play()
+            new Audio(staticUrl('action_menu_select.wav')).play()
         },
         plusOne() {
             ipc.sendMessage(createPlusOneMessage(this.message))
-            new Audio(`file://${__static}/action_menu_select.wav`).play()
+            new Audio(staticUrl('action_menu_select.wav')).play()
         },
     },
 }

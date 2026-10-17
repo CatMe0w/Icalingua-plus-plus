@@ -18,7 +18,7 @@
             <div class="grid" v-show="recentFace.length">
                 <div v-for="i in recentFace" :key="i">
                     <img
-                        :src="getFacePreview(i)"
+                        v-lazy-src="getFacePreview(i)"
                         @click="pickFace(i)"
                         @click.right="pickLottie(i)"
                         :title="getFaceName(i)"
@@ -32,7 +32,7 @@
             <div class="grid">
                 <div v-for="i in faceIdToLottie.keys()" :key="i">
                     <img
-                        :src="getFacePreview(i)"
+                        v-lazy-src="getFacePreview(i)"
                         @click="pickFace(i)"
                         @click.right="pickLottie(i)"
                         :title="getFaceName(i)"
@@ -43,7 +43,7 @@
             <div class="grid" v-show="face.length">
                 <div v-for="i in face" :key="i">
                     <img
-                        :src="getFacePreview(i)"
+                        v-lazy-src="getFacePreview(i)"
                         @click="pickFace(i)"
                         @click.right="pickLottie(i)"
                         :title="getFaceName(i)"
@@ -186,6 +186,8 @@ import fs from 'fs'
 import path from 'path'
 import md5 from 'md5'
 import getStaticPath from '../../utils/getStaticPath'
+import { faceThumbUrl, isWebStatic, staticUrl } from '../utils/staticAsset'
+import lazySrc from '../utils/lazySrc'
 import { faceIdToLottie } from '@icalingua/types/LottieFaceType'
 
 const faceMap = require('oicq-icalingua-plus-plus/lib/message/face').map
@@ -231,6 +233,7 @@ const RECENTS = {
 export default {
     name: 'Stickers',
     components: { VEmojiPicker },
+    directives: { lazySrc },
     computed: {
         stickerGridRows() {
             return this.stickerGridColumns > 0 ? Math.ceil(this.pics.length / this.stickerGridColumns) : 0
@@ -400,13 +403,20 @@ export default {
         }
 
         // Face
-        if (!fs.existsSync(this.face_dir)) {
+        if (isWebStatic) {
+            // 网页版无法列目录，使用构建时生成的清单
+            fetch(staticUrl('face/index.json'))
+                .then((res) => res.json())
+                .then((files) => (this.face = files))
+                .catch((e) => console.error('加载表情清单失败', e))
+        } else if (!fs.existsSync(this.face_dir)) {
             this.$message.error('No face folder found!')
             await fs.promises.mkdir(this.face_dir)
         }
-        fs.readdir(this.face_dir, (_err, files) => {
-            this.face = files
-        })
+        if (!isWebStatic)
+            fs.readdir(this.face_dir, (_err, files) => {
+                this.face = files
+            })
 
         // Stickers
         const store_dir = await ipc.getStorePath()
@@ -503,11 +513,7 @@ export default {
             return 'remote:' + url
         },
         getFacePreview(i) {
-            let faceId = String(i)
-            if (faceId.length < 3) {
-                faceId = '0'.repeat(3 - faceId.length) + faceId
-            }
-            return 'file://' + this.face_dir + faceId
+            return faceThumbUrl(i)
         },
         getFaceName(i) {
             return String(faceMap[parseInt(i)] || '').replace(/\//, '')

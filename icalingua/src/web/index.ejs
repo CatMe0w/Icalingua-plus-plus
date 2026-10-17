@@ -59,7 +59,8 @@
 </div>
 <div id="app"></div>
 <script>
-    window.__static = 'static'
+    // 静态资源根地址，构建时由 ICALINGUA_WEB_STATIC_URL 指定，默认与页面同目录
+    window.__staticUrl = <%= staticUrlJson %>
 </script>
 </body>
 

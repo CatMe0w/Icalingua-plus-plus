@@ -395,7 +395,7 @@
                         @confirm="useQuickFace"
                     >
                         <p>{{ name }}</p>
-                        <img :src="`file://${faceDir}/${id}`" />
+                        <img v-lazy-src="faceThumbUrl(id)" />
                     </SearchInput>
                 </transition>
 
@@ -582,7 +582,8 @@ import MessageAudio from '../Message/MessageAudio'
 import SearchInput from '../../../SearchInput'
 
 import faceNames from '../../../../../../static/faceNames'
-import getStaticPath from '../../../../../utils/getStaticPath'
+import { faceThumbUrl, staticUrl } from '../../../../utils/staticAsset'
+import lazySrc from '../../../../utils/lazySrc'
 
 import ipc from '../../../../utils/ipc'
 import { compareMessageOrder, messageIdKey } from '../../../../utils/messageOrder'
@@ -594,7 +595,6 @@ import Recorder from '../../utils/recorder'
 import groupMemberCache from '@/utils/groupMemberCache'
 import { decodeIcalinguaAtName, findIcalinguaAtMarkup } from '../../../../../utils/icalinguaAt'
 
-const faceDir = path.join(getStaticPath(), 'face')
 const messageDraftStorageKey = 'icalingua:message-draft'
 const messageDraftThrottleMs = 500
 
@@ -622,6 +622,7 @@ export default {
         SearchInput,
     },
     directives: {
+        lazySrc,
         clickOutside: vClickOutside.directive,
     },
     props: {
@@ -691,7 +692,6 @@ export default {
             isQuickFaceOn: false,
             isQuickAtOn: false,
             faceNames,
-            faceDir,
             groupMembers: null,
             useAtKey: false,
             visibleViewport: {
@@ -723,7 +723,7 @@ export default {
             scrollToBottomTimer: null,
             scrollToBottomGeneration: 0,
             textareaResizeScheduled: false,
-            pasteIcon: `file://${__static}/Clipboard.svg`,
+            pasteIcon: staticUrl('Clipboard.svg'),
             audioSessions: {},
             audioPreviewSession: { audio: new Audio() },
             audioRecorder: null,
@@ -1123,6 +1123,8 @@ export default {
         this.clearAudioSessions()
     },
     methods: {
+        staticUrl,
+        faceThumbUrl,
         scheduleDateRefresh() {
             const now = new Date()
             const nextDay = new Date(now)
