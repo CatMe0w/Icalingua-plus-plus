@@ -226,7 +226,7 @@ privateKey: # 安装的步骤中生成的私钥
 
 ### 网页版客户端（实验性）
 
-网页版是纯静态页面，可以部署在任意 HTTPS 静态托管（如 S3）上，通过 socket.io 直接连接 Bridge。网页版不支持登录流程，请先用桌面客户端完成 Bridge 的 QQ 登录。
+网页版是纯静态页面，可以部署在任意 HTTPS 静态托管（如 S3）上，也可以放在子路径下（如 `https://example.com/icalingua/`，注意以 `/` 结尾），通过 socket.io 直接连接 Bridge。
 
 1. 在 `icalingua` 目录执行 `pnpm build:web`，将 `dist/web` 整个目录上传到静态托管。
 2. 打开页面，填写 Bridge 地址和私钥即可连接。配置（包括私钥）保存在浏览器的 localStorage 中。
@@ -237,6 +237,8 @@ privateKey: # 安装的步骤中生成的私钥
 - 发送图片和语音会跨域请求 Bridge 的 `/api` 接口，需要 Bridge 版本包含对该接口的 CORS 支持。
 - 群文件使用 Bridge 自带的文件管理页面（`static/file-manager`）。在网页版中下载、复制链接和上传群文件，需要 Bridge 版本包含该页面的网页版兼容脚本（`assets/web-compat.js`）。
 - 群公告、群相册、群精华会在新标签页打开 QQ 的网页，需要在该网页上自行登录 QQ。
+- 登录时的滑块验证码、设备锁验证页面需要在新标签页中完成。滑块验证的结果可以从浏览器开发者工具中复制回来，也可以安装网页版提供的登录辅助用户脚本（`static/icalingua-login-helper.user.js`，需要 Tampermonkey 等扩展）自动完成。
+- 浏览器通知需要在浏览器中允许本站的通知权限，并且只在页面打开时有效。
 
 ## 登录握手细节
 

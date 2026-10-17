@@ -31,6 +31,8 @@ export const statSync = (path: string) => {
     return statOf(file)
 }
 export const readFileSync = (path: string) => {
+    // 桌面版读取 static 下的脚本注入外部页面（如滑块验证的 sliderinj.js），网页版无法注入，当作空脚本
+    if (path.endsWith('.js')) return ''
     throw enoent(path)
 }
 export const readdir = (_path: string, cb: Callback<string[]>) => cb(null, [])

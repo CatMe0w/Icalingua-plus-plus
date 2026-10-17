@@ -23,6 +23,11 @@ const copyStaticAssets = async () => {
     for (const file of fs.readdirSync(staticDir)) {
         if (/\.(svg|wav|webp)$/.test(file)) fs.copyFileSync(path.join(staticDir, file), path.join(outDir, file))
     }
+    // 登录辅助用户脚本，由登录验证说明面板提供安装链接（见 src/web/externalPage.ts）
+    fs.copyFileSync(
+        path.join(__dirname, '../src/web/userscript/icalingua-login-helper.user.js'),
+        path.join(outDir, 'icalingua-login-helper.user.js'),
+    )
     const faces = fs.readdirSync(path.join(staticDir, 'face')).sort()
     fs.writeFileSync(path.join(outDir, 'face/index.json'), JSON.stringify(faces))
     // 原图多为 128px 动图，面板里只显示 32px；只取首帧缩到 64px，总量从约 60MB 降到约 1MB

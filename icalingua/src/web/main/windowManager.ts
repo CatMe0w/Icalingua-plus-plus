@@ -11,17 +11,25 @@ import { notifyUnsupported } from './unsupported'
 type Win = WebWindow
 
 // region 主窗口与登录
-let onLoadMainWindow: () => void = () => {}
-let onLoginRequired: (message: string) => void = () => {}
-
-/** 由 web/main.ts 设置：首次登录成功时挂载主界面，需要登录时回到连接表单 */
-export const setMainWindowHooks = (hooks: { onLoad: () => void; onLoginRequired: (message: string) => void }) => {
-    onLoadMainWindow = hooks.onLoad
-    onLoginRequired = hooks.onLoginRequired
+export interface MainWindowHooks {
+    /** 首次收到 onlineData：挂载主界面 */
+    onLoad: () => void
+    /** bridge 需要登录，登录窗口已打开 */
+    onLoginShown: () => void
+    /** 未登录就关闭了登录窗口 */
+    onLoginCancelled: () => void
 }
+let hooks: MainWindowHooks
+let mainWindowLoaded = false
+
+/** 由 web/main.ts 设置 */
+export const setMainWindowHooks = (value: MainWindowHooks) => (hooks = value)
 
 export const getMainWindow = () => mainWindow
-export const loadMainWindow = async () => onLoadMainWindow()
+export const loadMainWindow = async () => {
+    mainWindowLoaded = true
+    hooks.onLoad()
+}
 export const showMainWindow = () => window.focus()
 export const tryToShowMainWindow = (callback?: () => void) => {
     window.focus()
@@ -37,11 +45,34 @@ export const sendToWindow = (target: Win | undefined, channel: string, ...payloa
     if (target && !target.isDestroyed()) target.webContents.send(channel, ...payload)
 }
 
-// 网页版暂不支持登录流程（需要处理滑块等验证页面），请先用桌面客户端完成 bridge 的登录
-export const getLoginWindow = (): Win | null => null
-export const showLoginWindow = async () =>
-    onLoginRequired('Bridge 尚未登录 QQ。网页版暂不支持登录流程，请先用桌面客户端完成登录。')
-export const sendToLoginWindow = () => {}
+// 登录窗口：与桌面版一样打开 #/login，滑块、设备锁等验证页见 web/externalPage.ts
+let loginWindow: Win | null = null
+let loginWindowLoading: Promise<void> | null = null
+
+export const getLoginWindow = () => loginWindow
+export const showLoginWindow = (isConfiguringBridge = false, disableIdLogin = false) => {
+    if (loginWindow) {
+        loginWindow.show()
+        loginWindow.focus()
+        return loginWindowLoading
+    }
+    const win = newIcalinguaWindow({ width: 550, height: 720, title: '登录' })
+    loginWindow = win
+    win.on('closed', () => {
+        if (loginWindow === win) loginWindow = null
+        // 登录成功时由 socketIoAdapter 关闭登录窗口；未登录就关闭则回到连接表单
+        if (!mainWindowLoaded) hooks.onLoginCancelled()
+    })
+    hooks.onLoginShown()
+    loginWindowLoading = win.loadURL(
+        getWinUrl() + `#/login?bridge=${isConfiguringBridge}&disableIdLogin=${disableIdLogin}`,
+    )
+    return loginWindowLoading
+}
+export const sendToLoginWindow = (channel: string, payload?: any) => {
+    if (loginWindow) loginWindow.webContents.send(channel, payload)
+    else showLoginWindow().then(() => loginWindow?.webContents.send(channel, payload))
+}
 
 // 网页版不支持锁定
 export const isAppLocked = () => false

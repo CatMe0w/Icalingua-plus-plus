@@ -19,6 +19,15 @@ window.addEventListener('contextmenu', (e) => {
     if (!e.shiftKey) e.preventDefault()
 })
 
+/**
+ * 浏览器只允许在用户操作时申请通知权限（Firefox 会直接拒绝其他时机的申请），
+ * 所以在用户第一次点击页面时申请，而不是等到第一条通知时。
+ */
+const requestNotificationPermissionOnFirstClick = () => {
+    if (!('Notification' in window) || Notification.permission !== 'default') return
+    window.addEventListener('pointerdown', () => void Notification.requestPermission(), { once: true, capture: true })
+}
+
 const mountApp = () => {
     Vue.config.productionTip = false
     Vue.use(ElementUI)
@@ -43,6 +52,7 @@ const addAppMenuButton = () => {
 }
 
 const startTopPage = () => {
+    requestNotificationPermissionOnFirstClick()
     const form = document.getElementById('connect-form') as HTMLFormElement
     const serverInput = document.getElementById('connect-server') as HTMLInputElement
     const keyInput = document.getElementById('connect-key') as HTMLInputElement
@@ -67,8 +77,11 @@ const startTopPage = () => {
                 if (router.currentRoute.path !== '/main') router.replace('/main')
                 addAppMenuButton()
             },
+            onLoginShown() {
+                document.getElementById('connect').hidden = true
+            },
             // 状态散落在 socket 和各个主进程模块里，回到表单时整页重载最简单可靠
-            onLoginRequired: quitToConnectForm,
+            onLoginCancelled: () => quitToConnectForm('已取消登录'),
         })
     }
 

@@ -5,6 +5,7 @@
  * 实现主进程代码会用到的 BrowserWindow / webContents 方法；未实现的方法调用时什么也不做，
  * 这样 windowManager、menuManager 等复用的代码可以照常创建和操作窗口。
  */
+import { createExternalPagePanel, detectExternalPageKind } from './externalPage'
 import { MAIN_WINDOW_ID, sendToRendererWindow, setPointerHandler, setWebContentsResolver } from './ipcBus'
 import { closeContextMenu, pointerScreenOffset, trackPointer } from './shims/electronMenu'
 
@@ -60,7 +61,9 @@ class WebContents extends Emitter {
     isDestroyed() {
         return this.window.isDestroyed()
     }
-    executeJavaScript() {
+    /** 网页版无法向外部页面注入脚本，记录下来供说明面板使用（见 externalPage.ts） */
+    executeJavaScript(code: string) {
+        this.window.injectedScripts.push(String(code))
         return Promise.resolve(undefined)
     }
     getURL() {
@@ -75,7 +78,9 @@ let topZIndex = 2000
 export class WebWindow extends Emitter {
     readonly webContents: WebContents
     url = ''
+    injectedScripts: string[] = []
     private destroyed = false
+    private disposeContent: (() => void) | null = null
     private title: string
     private panel: HTMLElement | null = null
     private titleEl: HTMLElement | null = null
@@ -98,7 +103,8 @@ export class WebWindow extends Emitter {
     }
 
     /**
-     * 打开本应用的某个路由（#/xxx）。外部网址默认在新标签页打开；
+     * 打开本应用的某个路由（#/xxx）。
+     * 外部网址默认显示说明面板，由用户在新标签页打开（见 externalPage.ts）；
      * 创建窗口时指定 embedExternal 则直接嵌入面板（如 bridge 的群文件页面）。
      */
     loadURL(url: string) {
@@ -107,8 +113,12 @@ export class WebWindow extends Emitter {
         if (this.isMain) return Promise.resolve()
         const isAppRoute = !!hash && url.startsWith(location.href.split('#')[0])
         if (!isAppRoute && !this.options.embedExternal) {
-            window.open(url, '_blank', 'noopener')
-            this.close()
+            // 先触发 did-finish-load，让桌面版代码照常 "注入" 脚本，再据此决定面板内容
+            this.webContents.emit('did-finish-load')
+            const kind = detectExternalPageKind(this.options, this.injectedScripts)
+            const content = createExternalPagePanel(url, kind, this)
+            this.disposeContent = content.dispose
+            this.createPanel(false, content.root)
             return Promise.resolve()
         }
         return new Promise<void>((resolve) => {
@@ -132,10 +142,10 @@ export class WebWindow extends Emitter {
         return this.panel?.querySelector('iframe')?.contentWindow ?? null
     }
 
-    private createPanel(isAppRoute: boolean) {
+    private createPanel(isAppRoute: boolean, content?: HTMLElement) {
         ensureStyle()
-        const width = Math.min(this.options.width || 800, window.innerWidth - 32)
-        const height = Math.min(this.options.height || 600, window.innerHeight - 32)
+        const width = Math.min(content ? 480 : this.options.width || 800, window.innerWidth - 32)
+        const height = Math.min(content ? 360 : this.options.height || 600, window.innerHeight - 32)
         const offset = (windows.size % 6) * 24
         const panel = document.createElement('div')
         panel.className = 'web-window'
@@ -159,7 +169,7 @@ export class WebWindow extends Emitter {
         const iframe = document.createElement('iframe')
         // 只有本应用的页面才作为子窗口接入 IPC 总线
         if (isAppRoute) iframe.dataset.icalinguaWindow = String(this.id)
-        panel.append(header, iframe)
+        panel.append(header, content ?? iframe)
         document.body.appendChild(panel)
         this.panel = panel
 
@@ -213,6 +223,7 @@ export class WebWindow extends Emitter {
     destroy() {
         if (this.destroyed || this.isMain) return
         this.destroyed = true
+        this.disposeContent?.()
         this.panel?.remove()
         this.panel = null
         windows.delete(this.id)
@@ -274,10 +285,20 @@ const STYLE = `
     font-size: 18px; line-height: 1; cursor: pointer; }
 .web-window-close:hover { background: #f56c6c; color: #fff; }
 .web-window iframe { flex: 1; width: 100%; border: 0; }
+.web-external-page { flex: 1; overflow: auto; padding: 12px 20px; font-size: 13px; color: #303133; }
+.web-external-page h3 { margin: 4px 0 8px; font-size: 16px; }
+.web-external-page p { line-height: 1.6; margin: 6px 0; }
+.web-external-actions { display: flex; align-items: center; gap: 16px; margin: 12px 0; }
+.web-external-page button { padding: 6px 14px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; cursor: pointer; }
+.web-external-page .web-external-primary { background: #409eff; border-color: #409eff; color: #fff; }
+.web-external-input { width: 100%; box-sizing: border-box; margin: 8px 0; font-family: monospace; font-size: 12px; }
+.web-external-status { color: #909399; }
 .web-window-dragging iframe { pointer-events: none; }
 @media (prefers-color-scheme: dark) {
     .web-window { background: #131415; border-color: #444; }
     .web-window-header { background: #2b2b2b; border-color: #444; color: #e5e5e5; }
+    .web-external-page { color: #e5e5e5; }
+    .web-external-page button { background: #2b2b2b; border-color: #555; color: #e5e5e5; }
 }`
 
 const ensureStyle = () => {
