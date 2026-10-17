@@ -21,28 +21,37 @@ const src = path.join(__dirname, '../src')
 const shims = path.join(src, 'web/shims')
 
 /**
- * 网页版直接复用 main/ipc/menuManager.ts 等主进程代码，
- * 其依赖的、只能在桌面环境运行的模块替换为 src/web/main 下的同名实现。
+ * 网页版直接复用桌面版的主进程代码（socketIoAdapter、botAndStorage、system、menuManager、ui、themes 等），
+ * 其依赖的、只能在桌面环境运行的模块替换为 src/web/main 下的实现。键为相对 src 的模块路径。
  */
-const MAIN_MODULE_REPLACEMENTS = [
-    'main/ipc/botAndStorage',
-    'main/ipc/downloadManager',
-    'main/ipc/openImage',
-    'main/utils/configManager',
-    'main/utils/exit',
-    'main/utils/exportContacts',
-    'main/utils/exportGroupMembers',
-    'main/utils/groupWebApps',
-    'main/utils/openMedia',
-    'main/utils/themes',
-    'main/utils/trayManager',
-    'main/utils/version',
-    'main/utils/windowManager',
-    'utils/IcalinguaWindow',
-    'utils/getWinUrl',
-]
+const MAIN_MODULE_REPLACEMENTS: Record<string, string> = {
+    'main/adapters/oicqAdapter': 'emptyAdapter',
+    'main/adapters/readOnlyAdapter': 'emptyAdapter',
+    'main/ipc/downloadManager': 'downloadManager',
+    'main/ipc/openImage': 'openImage',
+    'main/utils/avatarCache': 'avatarCache',
+    'main/utils/configManager': 'configManager',
+    'main/utils/errorHandler': 'errorHandler',
+    'main/utils/exit': 'exit',
+    'main/utils/exportContacts': 'exportContacts',
+    'main/utils/exportGroupMembers': 'exportGroupMembers',
+    'main/utils/groupWebApps': 'groupWebApps',
+    'main/utils/isInlineReplySupported': 'isInlineReplySupported',
+    'main/utils/noctaliaServer': 'noctaliaServer',
+    'main/utils/openMedia': 'openMedia',
+    'main/utils/silkEncode': 'silkEncode',
+    'main/utils/trayManager': 'trayManager',
+    'main/utils/updateChecker': 'updateChecker',
+    'main/utils/version': 'version',
+    'main/utils/windowManager': 'windowManager',
+    'utils/IcalinguaWindow': 'IcalinguaWindow',
+    'utils/getWinUrl': 'getWinUrl',
+}
 const replacementTargets = new Map(
-    MAIN_MODULE_REPLACEMENTS.map((mod) => [path.join(src, mod), path.join(src, 'web/main', path.basename(mod))]),
+    Object.entries(MAIN_MODULE_REPLACEMENTS).map(([mod, target]) => [
+        path.join(src, mod),
+        path.join(src, 'web/main', target),
+    ]),
 )
 
 // 网页版不打包微软雅黑（16MB），交给系统字体回退：css-loader 不再解析这个 url，打包时也就不会包含它
@@ -104,6 +113,10 @@ const webConfig: Configuration = {
             path$: 'path-browserify',
             querystring$: path.join(shims, 'querystring.ts'),
             'oicq-icalingua-plus-plus$': path.join(src, 'web/main/oicq.ts'),
+            '@icalingua/storage-providers/SQLStorageProvider$': path.join(shims, 'sqlStorageProvider.ts'),
+            'file-type$': path.join(shims, 'fileType.ts'),
+            'freedesktop-notifications$': path.join(shims, 'freedesktopNotifications.ts'),
+            systeminformation$: path.join(shims, 'systeminformation.ts'),
         },
         extensions: ['.ts', '.js', '.vue', '.json', '.css'],
     },

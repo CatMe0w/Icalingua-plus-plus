@@ -3,7 +3,8 @@
  * （main/ipc/menuManager.ts、main/utils/ui.ts 等）实际用到的部分。
  */
 import { ipcMain, ipcRenderer } from '../ipcBus'
-import { webWindow } from '../webWindow'
+import { quitToConnectForm, rememberMessage } from '../lifecycle'
+import { createWindow, getWindowByWebContents, mainWindow } from '../webWindow'
 import { Menu, MenuItem } from './electronMenu'
 
 export { ipcMain, ipcRenderer, Menu, MenuItem }
@@ -84,17 +85,23 @@ export const clipboard = {
 export const app = {
     getPath: () => '',
     getVersion: () => '',
-    quit: () => location.reload(),
+    quit: () => quitToConnectForm(),
+    exit: () => quitToConnectForm(),
+    relaunch: () => {},
     isPackaged: true,
 }
+
+type MessageBoxOptions = { message?: string; buttons?: string[]; type?: string }
 
 export const dialog = {
     showOpenDialogSync: (): string[] | undefined => undefined,
     showSaveDialogSync: (): string | undefined => undefined,
-    showMessageBox: async (_win: unknown, options?: { message?: string; buttons?: string[] }) => {
-        const opts = options ?? (_win as { message?: string; buttons?: string[] })
-        if (opts?.buttons && opts.buttons.length > 1) return { response: confirm(opts.message) ? 0 : 1 }
-        alert(opts?.message)
+    showMessageBox: async (winOrOptions: unknown, maybeOptions?: MessageBoxOptions) => {
+        const options = maybeOptions ?? (winOrOptions as MessageBoxOptions)
+        if (options?.buttons && options.buttons.length > 1) return { response: confirm(options.message) ? 0 : 1 }
+        // 错误对话框之后通常紧跟 app.quit()，由连接表单显示这条信息
+        if (options?.type === 'error') rememberMessage(options.message)
+        else alert(options?.message)
         return { response: 0 }
     },
 }
@@ -107,18 +114,39 @@ export const screen = {
     }),
 }
 
+const darkQuery = matchMedia('(prefers-color-scheme: dark)')
+
 export const nativeTheme = {
     get shouldUseDarkColors() {
-        return matchMedia('(prefers-color-scheme: dark)').matches
+        return darkQuery.matches
     },
     themeSource: 'system',
-    on: () => {},
+    on: (event: string, callback: () => void) => {
+        if (event === 'updated') darkQuery.addEventListener('change', callback)
+    },
 }
 
-export const BrowserWindow = {
-    fromWebContents: () => webWindow,
-    getAllWindows: () => [webWindow],
-    getFocusedWindow: () => webWindow,
+/** new BrowserWindow(options) 创建网页版子窗口 */
+export const BrowserWindow: any = function (options?: Record<string, any>) {
+    return createWindow(options)
+}
+BrowserWindow.fromWebContents = getWindowByWebContents
+BrowserWindow.getFocusedWindow = () => mainWindow
+
+/** macOS / Windows 才会用到 Electron 的通知，网页版走 freedesktop-notifications 替身 */
+export class Notification {
+    static isSupported() {
+        return false
+    }
+    on() {}
+    show() {}
+    close() {}
+}
+
+export const globalShortcut = {
+    register: () => false,
+    unregister: () => {},
+    unregisterAll: () => {},
 }
 
 // 浏览器里的 File 没有本地路径
@@ -139,5 +167,7 @@ export default {
     screen,
     nativeTheme,
     BrowserWindow,
+    Notification,
+    globalShortcut,
     webUtils,
 }

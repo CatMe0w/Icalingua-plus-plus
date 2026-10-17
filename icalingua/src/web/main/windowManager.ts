@@ -1,29 +1,135 @@
-/** 替代 main/utils/windowManager.ts：网页版只有当前页面这一个窗口 */
-import { emitToRenderer } from '../ipcBus'
-import { webWindow } from '../webWindow'
-import { unsupported } from './unsupported'
+/**
+ * 替代 main/utils/windowManager.ts。主窗口是当前页面，其余窗口是页面内的浮动子窗口（见 web/webWindow.ts），
+ * 各窗口的路由、尺寸与桌面版保持一致。
+ */
+import DatabaseUpgradeProgress from '@icalingua/types/DatabaseUpgradeProgress'
+import getWinUrl from './getWinUrl'
+import { mainWindow, WebWindow } from '../webWindow'
+import { newIcalinguaWindow } from './IcalinguaWindow'
+import { notifyUnsupported } from './unsupported'
 
-export const getMainWindow = () => webWindow
-export const getRoomIdByWindow = (): number | undefined => undefined
-export const sendToWindow = (_win: unknown, channel: string, ...args: any[]) => emitToRenderer(channel, ...args)
-export const sendToMainWindow = (channel: string, ...args: any[]) => emitToRenderer(channel, ...args)
+type Win = WebWindow
+
+// region 主窗口与登录
+let onLoadMainWindow: () => void = () => {}
+let onLoginRequired: (message: string) => void = () => {}
+
+/** 由 web/main.ts 设置：首次登录成功时挂载主界面，需要登录时回到连接表单 */
+export const setMainWindowHooks = (hooks: { onLoad: () => void; onLoginRequired: (message: string) => void }) => {
+    onLoadMainWindow = hooks.onLoad
+    onLoginRequired = hooks.onLoginRequired
+}
+
+export const getMainWindow = () => mainWindow
+export const loadMainWindow = async () => onLoadMainWindow()
+export const showMainWindow = () => window.focus()
 export const tryToShowMainWindow = (callback?: () => void) => {
     window.focus()
     callback?.()
 }
 export const tryToShowAllWindows = () => window.focus()
+export const refreshMainWindowColor = () => {}
+export const setMainWindowTitleBarHidden = async () => {}
+export const setZoomFactorForAllWindows = () => {}
+export const getMainWindowScreen = () => ({ size: { width: window.innerWidth, height: window.innerHeight } })
+export const sendToMainWindow = (channel: string, payload?: any) => mainWindow.webContents.send(channel, payload)
+export const sendToWindow = (target: Win | undefined, channel: string, ...payload: any[]) => {
+    if (target && !target.isDestroyed()) target.webContents.send(channel, ...payload)
+}
 
-// 独立聊天窗口在网页版中不存在
-export const isRoomInChatWindow = () => false
-export const sendToChatWindow = () => {}
-export const sendToAllChatWindows = () => {}
-export const sendToRequestWindow = () => {}
-export const openChatWindow = unsupported('独立聊天窗口')
+// 网页版暂不支持登录流程（需要处理滑块等验证页面），请先用桌面客户端完成 bridge 的登录
+export const getLoginWindow = (): Win | null => null
+export const showLoginWindow = async () =>
+    onLoginRequired('Bridge 尚未登录 QQ。网页版暂不支持登录流程，请先用桌面客户端完成登录。')
+export const sendToLoginWindow = () => {}
 
-export const lockMainWindow = unsupported('锁定')
-export const showAria2SettingsWindow = unsupported('Aria2 设置')
-export const showDeviceManagerWindow = unsupported('设备管理')
-export const showIgnoreManageWindow = unsupported('屏蔽管理')
-export const showRequestWindow = unsupported('好友/加群请求')
-export const showSetLockPasswordWindow = unsupported('设置锁定密码')
-export const showSettingsWindow = unsupported('设置')
+// 网页版不支持锁定
+export const isAppLocked = () => false
+export const lockMainWindow = () => notifyUnsupported('锁定')
+export const judgeLocked = (callback: () => void) => callback()
+// endregion
+
+// region 数据库升级进度
+const databaseUpgradeProgress: DatabaseUpgradeProgress = { active: false, step: 0, total: 0, message: '' }
+export const getDatabaseUpgradeProgress = (): DatabaseUpgradeProgress => ({ ...databaseUpgradeProgress })
+export const sendDatabaseUpgradeProgress = (progress: DatabaseUpgradeProgress) => {
+    Object.assign(databaseUpgradeProgress, progress)
+    sendToMainWindow('dbUpgradeProgress', databaseUpgradeProgress)
+    sendToSettingsWindow('dbUpgradeProgress', databaseUpgradeProgress)
+}
+// endregion
+
+// region 单例窗口
+const singletons = new Map<string, Win>()
+
+/** 同一种窗口只开一个，已打开时聚焦 */
+const showSingleton = (route: string, options: Record<string, any>, title: string) => {
+    const existing = singletons.get(route)
+    if (existing && !existing.isDestroyed()) {
+        existing.show()
+        existing.focus()
+        return existing
+    }
+    const win = newIcalinguaWindow({ title, ...options })
+    singletons.set(route, win)
+    win.on('closed', () => singletons.get(route) === win && singletons.delete(route))
+    void win.loadURL(getWinUrl() + '#/' + route)
+    return win
+}
+const sendToSingleton = (route: string, channel: string, payload?: any) =>
+    sendToWindow(singletons.get(route), channel, payload)
+
+export const showSettingsWindow = () => showSingleton('settings', { width: 1040, height: 760 }, '设置')
+export const sendToSettingsWindow = (channel: string, payload?: any) => sendToSingleton('settings', channel, payload)
+export const showIgnoreManageWindow = () => showSingleton('ignoreManage', { width: 500, height: 700 }, '屏蔽管理')
+export const showAria2SettingsWindow = () => showSingleton('aria2', { width: 500, height: 485 }, 'Aria2 设置')
+export const showSetLockPasswordWindow = () => showSingleton('setLockPassword', { width: 500, height: 200 }, '锁定密码')
+export const showRequestWindow = () => showSingleton('friendRequest', { width: 600, height: 700 }, '好友与加群请求')
+export const sendToRequestWindow = (channel: string, payload?: any) =>
+    sendToSingleton('friendRequest', channel, payload)
+export const showDeviceManagerWindow = () => showSingleton('deviceManager', { width: 750, height: 600 }, '设备管理')
+export const sendToDeviceManagerWindow = (channel: string, payload?: any) =>
+    sendToSingleton('deviceManager', channel, payload)
+// endregion
+
+// region 独立聊天窗口
+const chatWindows = new Map<number, Win>()
+
+export const isRoomInChatWindow = (roomId: number) =>
+    !!chatWindows.get(roomId) && !chatWindows.get(roomId).isDestroyed()
+export const getChatWindow = (roomId: number) => (isRoomInChatWindow(roomId) ? chatWindows.get(roomId) : undefined)
+export const getAllChatWindowRoomIds = () => [...chatWindows.keys()].filter(isRoomInChatWindow)
+export const sendToChatWindow = (roomId: number, channel: string, payload?: any) =>
+    sendToWindow(chatWindows.get(roomId), channel, payload)
+export const sendToAllChatWindows = (channel: string, payload?: any) =>
+    chatWindows.forEach((win) => sendToWindow(win, channel, payload))
+export const getRoomIdByWindow = (win: Win): number | undefined => {
+    for (const [roomId, w] of chatWindows) if (w === win || w.id === win?.id) return roomId
+    return undefined
+}
+export const focusChatWindow = (roomId: number) => {
+    const win = getChatWindow(roomId)
+    if (!win) return false
+    win.show()
+    win.focus()
+    return true
+}
+export const closeChatWindow = (roomId: number) => getChatWindow(roomId)?.close()
+
+export const openChatWindow = async (roomId: number, roomName: string, gotoMessageId?: string) => {
+    if (isRoomInChatWindow(roomId)) {
+        focusChatWindow(roomId)
+        if (gotoMessageId) sendToChatWindow(roomId, 'gotoMessage', gotoMessageId)
+        return
+    }
+    const win = newIcalinguaWindow({ width: 900, height: window.innerHeight - 80, title: roomName })
+    chatWindows.set(roomId, win)
+    win.on('closed', () => chatWindows.get(roomId) === win && chatWindows.delete(roomId))
+    win.on('focus', () => win.webContents.send('clearUnread'))
+    win.webContents.on('did-finish-load', () => {
+        // 与桌面版一样延迟发送，确保 Vue 组件已初始化
+        if (gotoMessageId) setTimeout(() => win.webContents.send('gotoMessage', gotoMessageId), 500)
+    })
+    await win.loadURL(getWinUrl() + '#/chatWindow/' + roomId)
+}
+// endregion

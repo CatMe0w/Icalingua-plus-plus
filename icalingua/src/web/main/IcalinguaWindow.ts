@@ -1,5 +1,6 @@
-/** 替代 utils/IcalinguaWindow.ts：独立窗口暂不支持，返回一个吸收所有调用的假窗口 */
-import { createFakeWindow } from './unsupported'
+/** 替代 utils/IcalinguaWindow.ts：创建网页版子窗口 */
+import { createWindow } from '../webWindow'
 
-export const newIcalinguaWindow = () => createFakeWindow()
-export const openMannounceWindow = () => createFakeWindow()
+export const newIcalinguaWindow = (options?: Record<string, any>, extra?: { stableTitle?: string }) =>
+    createWindow({ title: extra?.stableTitle, ...options })
+export const openMannounceWindow = newIcalinguaWindow

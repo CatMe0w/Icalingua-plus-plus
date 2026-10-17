@@ -73,10 +73,12 @@ export class Menu {
         return menu
     }
 
-    // 网页版没有应用菜单栏
-    static setApplicationMenu() {}
+    // 网页版没有菜单栏，应用菜单由页面上的菜单按钮弹出（见 web/main.ts）
+    static setApplicationMenu(menu: Menu | null) {
+        applicationMenu = menu
+    }
     static getApplicationMenu(): Menu | null {
-        return null
+        return applicationMenu
     }
 
     append(item: MenuItem) {
@@ -107,6 +109,8 @@ export class Menu {
         closeContextMenu()
     }
 }
+
+let applicationMenu: Menu | null = null
 
 // region 渲染
 const lastPointer = { x: 0, y: 0 }
@@ -282,7 +286,7 @@ export const closeContextMenu = () => {
 }
 
 // 记录鼠标位置（供未指定坐标的 popup 使用，也供窗口替身换算屏幕坐标），并处理菜单的关闭
-const trackPointer = (e: MouseEvent) => {
+export const trackPointer = (e: { clientX: number; clientY: number; screenX: number; screenY: number }) => {
     lastPointer.x = e.clientX
     lastPointer.y = e.clientY
     pointerScreenOffset.x = e.screenX - e.clientX
