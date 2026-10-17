@@ -4,6 +4,7 @@
  */
 import { ipcMain, ipcRenderer } from '../ipcBus'
 import { quitToConnectForm, rememberMessage } from '../lifecycle'
+import { registerFile } from '../webFiles'
 import { createWindow, getWindowByWebContents, mainWindow } from '../webWindow'
 import { Menu, MenuItem } from './electronMenu'
 
@@ -149,9 +150,9 @@ export const globalShortcut = {
     unregisterAll: () => {},
 }
 
-// 浏览器里的 File 没有本地路径
+// 浏览器里的 File 没有本地路径，登记后换成虚拟路径（见 web/webFiles.ts）
 export const webUtils = {
-    getPathForFile: () => '',
+    getPathForFile: (file: File) => registerFile(file),
 }
 
 export default {

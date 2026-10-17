@@ -235,6 +235,8 @@ privateKey: # 安装的步骤中生成的私钥
 
 - 页面必须通过 HTTPS 访问（签名依赖浏览器的 WebCrypto，仅在安全上下文中可用），Bridge 也必须是 HTTPS。
 - 发送图片和语音会跨域请求 Bridge 的 `/api` 接口，需要 Bridge 版本包含对该接口的 CORS 支持。
+- 群文件使用 Bridge 自带的文件管理页面（`static/file-manager`）。在网页版中下载、复制链接和上传群文件，需要 Bridge 版本包含该页面的网页版兼容脚本（`assets/web-compat.js`）。
+- 群公告、群相册、群精华会在新标签页打开 QQ 的网页，需要在该网页上自行登录 QQ。
 
 ## 登录握手细节
 

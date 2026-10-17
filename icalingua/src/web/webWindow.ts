@@ -97,18 +97,22 @@ export class WebWindow extends Emitter {
         return this.id === MAIN_WINDOW_ID
     }
 
-    /** 打开本应用的某个路由（#/xxx）；外部网址在新标签页打开 */
+    /**
+     * 打开本应用的某个路由（#/xxx）。外部网址默认在新标签页打开；
+     * 创建窗口时指定 embedExternal 则直接嵌入面板（如 bridge 的群文件页面）。
+     */
     loadURL(url: string) {
         this.url = url
         const hash = url.includes('#') ? url.slice(url.indexOf('#')) : ''
         if (this.isMain) return Promise.resolve()
-        if (!hash || !url.startsWith(location.href.split('#')[0])) {
+        const isAppRoute = !!hash && url.startsWith(location.href.split('#')[0])
+        if (!isAppRoute && !this.options.embedExternal) {
             window.open(url, '_blank', 'noopener')
             this.close()
             return Promise.resolve()
         }
         return new Promise<void>((resolve) => {
-            const iframe = this.createPanel()
+            const iframe = this.createPanel(isAppRoute)
             iframe.addEventListener(
                 'load',
                 () => {
@@ -119,11 +123,16 @@ export class WebWindow extends Emitter {
                 },
                 { once: true },
             )
-            iframe.src = location.pathname + location.search + hash
+            iframe.src = isAppRoute ? location.pathname + location.search + hash : url
         })
     }
 
-    private createPanel() {
+    /** 面板里的页面，用于和嵌入的外部页面 postMessage 通信 */
+    getFrameWindow(): Window | null {
+        return this.panel?.querySelector('iframe')?.contentWindow ?? null
+    }
+
+    private createPanel(isAppRoute: boolean) {
         ensureStyle()
         const width = Math.min(this.options.width || 800, window.innerWidth - 32)
         const height = Math.min(this.options.height || 600, window.innerHeight - 32)
@@ -148,7 +157,8 @@ export class WebWindow extends Emitter {
         header.append(this.titleEl, close)
 
         const iframe = document.createElement('iframe')
-        iframe.dataset.icalinguaWindow = String(this.id)
+        // 只有本应用的页面才作为子窗口接入 IPC 总线
+        if (isAppRoute) iframe.dataset.icalinguaWindow = String(this.id)
         panel.append(header, iframe)
         document.body.appendChild(panel)
         this.panel = panel

@@ -219,6 +219,7 @@
     },
     "devDependencies": {
         "@noble/ed25519": "1.7.1",
+        "@noble/hashes": "1.4.0",
         "@rspack/cli": "^2.1.10",
         "@rspack/core": "^2.1.10",
         "@rspack/dev-server": "^2.2.0",

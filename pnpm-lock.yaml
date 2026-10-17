@@ -98,6 +98,9 @@ importers:
       '@noble/ed25519':
         specifier: 1.7.1
         version: 1.7.1
+      '@noble/hashes':
+        specifier: 1.4.0
+        version: 1.4.0
       '@rspack/cli':
         specifier: ^2.1.10
         version: 2.1.10(@rspack/core@2.1.10)(@rspack/dev-server@2.2.0(@rspack/core@2.1.10))
